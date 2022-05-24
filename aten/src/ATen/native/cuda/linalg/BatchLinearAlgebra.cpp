@@ -1915,7 +1915,6 @@ static void lu_factor(const Tensor& input, const Tensor& pivots, const Tensor& i
   auto batch_size = batchCount(input);
   (void) batch_size; // Silence unused warning in some builds
 
-
 #if AT_MAGMA_ENABLED()
   const auto lu_factor_magma = [batch_size](const Tensor& input, const Tensor& pivots, const Tensor& infos, const bool compute_pivots) {
     if (batch_size == 1) {
