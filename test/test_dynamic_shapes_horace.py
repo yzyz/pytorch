@@ -27,6 +27,10 @@ def register_meta(op):
         return f
     return decorator
 
+@register_meta(aten.ones_like.default)
+def n_like(arg, **kwargs):
+    return arg.new_empty(arg.shape)
+
 @register_meta([aten.add.Tensor, aten.sub.Tensor])
 def binary_meta(a, b):
     return a.new_empty(a.shape)
@@ -44,6 +48,11 @@ def cat_meta(tensors, dim=0):
     new_shape = list(shape)
     new_shape[dim] = concat_length
     return tensors[0].new_empty(new_shape)
+
+
+@register_meta(aten.sum.default)
+def sum_meta(x):
+    return x.new_empty(())
 
 
 @register_meta([aten.expand.SymInt])
@@ -112,6 +121,8 @@ class ShapeEnv(object):
 
 
 def create_contiguous(shape):
+    if len(shape) == 0:
+        return []
     strides = [1]
     for dim in reversed(shape[:-1]):
         strides.append(dim * strides[-1])
@@ -123,9 +134,11 @@ class FakeSymbolicTensor(torch.Tensor):
         # sym_strides doesn't work yet
         # TODO: this is wrong in general
         offset = 0
+        contiguous_strides = create_contiguous(sym_shape)
+        print(sym_shape, contiguous_strides)
         r = torch.Tensor._make_sym_wrapper_subclass(
             cls, sym_shape,
-            create_contiguous(sym_shape), offset,
+            contiguous_strides, offset,
             dtype=dtype, layout=layout, requires_grad=requires_grad,
             device=device
         )
@@ -139,6 +152,7 @@ class FakeSymbolicTensor(torch.Tensor):
 
     @classmethod
     def __torch_dispatch__(cls, func_overload, types, args=(), kwargs=None):
+        print("RUNNING: ", func_overload)
         if func_overload in meta_funcs:
             return meta_funcs[func_overload](*args, **kwargs)
 
@@ -157,9 +171,11 @@ def create_symbolic_tensor(name, arg, shape_env):
 
 
 shape_env = ShapeEnv()
-x = create_symbolic_tensor("x", torch.randn(3,4,5), shape_env)
-val = torch.broadcast_to(x, x.shape)
-print(val.shape)
+x = create_symbolic_tensor("x", torch.randn(3,4,5, requires_grad=True), shape_env)
+y = (x + 2).sum()
+out = torch.autograd.grad(y, x)
+print(out[0].shape)
+exit(0)
 expand_x = x.expand(x.shape[0], x.shape[0])
 if expand_x.shape[0] > 3:
     result = expand_x + expand_x

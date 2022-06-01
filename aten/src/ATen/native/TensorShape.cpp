@@ -322,7 +322,7 @@ Tensor broadcast_to(const Tensor& self, IntArrayRef size) {
 }
 
 Tensor broadcast_to(const Tensor& self, c10::SymIntArrayRef sym_size) {
-  return self.expand(sym_size);
+  return self.expand(self.sym_sizes());
 }
 
 std::vector<Tensor> broadcast_tensors(TensorList tensors) {
