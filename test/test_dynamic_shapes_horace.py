@@ -90,7 +90,7 @@ magic_methods = {
 }
 
 for method, func in magic_methods.items():
-    method_name = f'__{method}__'
+    method_name = f'{method}'
     def create_magic_impl(func):
         def magic_impl(self, other):
             if isinstance(other, PySymInt):
@@ -136,7 +136,7 @@ class FakeSymbolicTensor(torch.Tensor):
         offset = 0
         contiguous_strides = create_contiguous(sym_shape)
         print(sym_shape, contiguous_strides)
-        r = torch.Tensor._make_sym_wrapper_subclass(
+        r = torch.Tensor._make_wrapper_subclass(
             cls, sym_shape,
             contiguous_strides, offset,
             dtype=dtype, layout=layout, requires_grad=requires_grad,
