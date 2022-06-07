@@ -41,7 +41,7 @@ def enable_strict(val):
 
 def wrap_output(real_out, proxy_out):
     def wrap_with_proxy(e, proxy):
-        if type(e) == torch.Tensor:
+        if isinstance(e, torch.Tensor):
             with no_dispatch():
                 return ProxyTensor(e, proxy)
         else:
@@ -68,6 +68,8 @@ def proxy_call(func_overload, args, kwargs=None):
         raise RuntimeError("It appears that you're trying to get value out of a tracing tensor - erroring out! "
                            "It's likely that this is caused by data-dependent control flow or similar."
                            "Try torch.fx.experimental.proxy_tensor.enable_strict(False) to disable this check")
+    def unwrap_elem(e):
+        return e.elem if isinstance(e, ProxyTensor) else e
 
     def unwrap_proxy(e):
         return e.proxy if isinstance(e, ProxyTensor) else e
@@ -82,10 +84,17 @@ def proxy_call(func_overload, args, kwargs=None):
         args[0].proxy = proxy_out
         proxy_out.node.meta['tensor_meta'] = _extract_tensor_metadata(args[0])
 
-    with no_dispatch():
-        real_out = func_overload(*args, **kwargs)
+    real_out = func_overload(*pytree.tree_map(unwrap_elem, args), **pytree.tree_map(unwrap_elem, kwargs))
 
     return wrap_output(real_out, proxy_out)
+
+def create_contiguous(shape):
+    if len(shape) == 0:
+        return []
+    strides = [1]
+    for dim in reversed(shape[:-1]):
+        strides.append(dim * strides[-1])
+    return list(reversed(strides))
 
 class ProxyTensor(torch.Tensor):
     proxy: fx.Proxy
@@ -93,18 +102,18 @@ class ProxyTensor(torch.Tensor):
     @staticmethod
     def __new__(cls, elem, proxy, *, requires_grad=None):
         # Hack to deal with super().__new__ not working for sparse tensors
-        if elem.is_sparse or requires_grad is not None:
-            if requires_grad is None:
-                requires_grad = False
-            r = torch.Tensor._make_subclass(cls, elem, requires_grad)
-        else:
-            r = super().__new__(cls, elem)  # type: ignore[call-arg]
-
-        if elem.is_sparse:
-            proxy.node.meta['tensor_meta'] = {}
-        else:
-            proxy.node.meta['tensor_meta'] = _extract_tensor_metadata(r)
+        r = torch.Tensor._make_wrapper_subclass(
+            cls, elem.shape,
+            create_contiguous(elem.shape), 0,
+            dtype=elem.dtype, layout=elem.layout, requires_grad=requires_grad if requires_grad is not None else False,
+            device=elem.device
+        )
+        # if elem.is_sparse:
+        #     proxy.node.meta['tensor_meta'] = {}
+        # else:
+        #     proxy.node.meta['tensor_meta'] = _extract_tensor_metadata(r)
         r.proxy = proxy  # type: ignore[attr-defined]
+        r.elem = elem
 
         return r
 
@@ -121,6 +130,24 @@ class ProxyTensor(torch.Tensor):
     def __torch_dispatch__(cls, func_overload, types, args=(), kwargs=None):
         return proxy_call(func_overload, args, kwargs)
 
+import sympy
+
+class PySymInt(object):
+    def __init__(self, expr, shape_env):
+        self.expr = expr
+        self.shape_env = shape_env
+
+    def wrap(self, num):
+        return PySymInt(sympy.Integer(num), self.shape_env)
+
+    def __str__(self):
+        return f"PySymInt({self.expr})"
+
+    def __int__(self):
+        return self.shape_env.evaluate_expr(self.expr)
+
+    def __bool__(self):
+        return bool(self.shape_env.evaluate_expr(self.expr))
 
 class PythonKeyTracer(Tracer):
     def __init__(self):
