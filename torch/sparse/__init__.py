@@ -7,8 +7,10 @@ from torch import Tensor
 
 # A workaround to support both TorchScript and MyPy:
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from torch.types import _dtype as DType
+
     DimOrDims = Optional[Union[int, Tuple[int], List[int]]]
 else:
     # The JIT doesn't understand Union, nor torch.dtype here
@@ -17,15 +19,17 @@ else:
 
 
 __all__ = [
-    'addmm',
-    'mm',
-    'sum',
-    'softmax',
-    'log_softmax',
+    "addmm",
+    "mm",
+    "sum",
+    "softmax",
+    "log_softmax",
 ]
 
 
-addmm = _add_docstr(_sparse._sparse_addmm, r"""
+addmm = _add_docstr(
+    _sparse._sparse_addmm,
+    r"""
 sparse.addmm(mat, mat1, mat2, *, beta=1., alpha=1.) -> Tensor
 
 This function does exact same thing as :func:`torch.addmm` in the forward,
@@ -44,10 +48,13 @@ Args:
     mat2 (Tensor): a dense matrix to be multiplied
     beta (Number, optional): multiplier for :attr:`mat` (:math:`\beta`)
     alpha (Number, optional): multiplier for :math:`mat1 @ mat2` (:math:`\alpha`)
-""")
+""",
+)
 
 
-mm = _add_docstr(_sparse._sparse_mm, r"""
+mm = _add_docstr(
+    _sparse._sparse_mm,
+    r"""
     Performs a matrix multiplication of the sparse matrix :attr:`mat1`
     and the (sparse or strided) matrix :attr:`mat2`. Similar to :func:`torch.mm`, if :attr:`mat1` is a
     :math:`(n \times m)` tensor, :attr:`mat2` is a :math:`(m \times p)` tensor, out will be a
@@ -94,10 +101,13 @@ mm = _add_docstr(_sparse._sparse_mm, r"""
                                [0, 1, 2, 0, 1, 2]]),
                values=tensor([ 0.1394, -0.6415, -2.1639,  0.1394, -0.6415, -2.1639]),
                size=(2, 3), nnz=6, layout=torch.sparse_coo)
-    """)
+    """,
+)
 
 
-sampled_addmm = _add_docstr(_sparse.sparse_sampled_addmm, r"""
+sampled_addmm = _add_docstr(
+    _sparse.sparse_sampled_addmm,
+    r"""
 sparse.sampled_addmm(input, mat1, mat2, *, beta=1., alpha=1., out=None) -> Tensor
 
 Performs a matrix multiplication of the dense matrices :attr:`mat1` and :attr:`mat2` at the locations
@@ -147,11 +157,11 @@ Examples::
         col_indices=tensor([0, 1, 2]),
         values=tensor([ 0.1423, -0.3903, -0.0950]), device='cuda:0',
         size=(3, 3), nnz=3, layout=torch.sparse_csr)
-""")
+""",
+)
 
 
-def sum(input: Tensor, dim: DimOrDims = None,
-        dtype: Optional[DType] = None) -> Tensor:
+def sum(input: Tensor, dim: DimOrDims = None, dtype: Optional[DType] = None) -> Tensor:
     r"""
     Returns the sum of each row of the sparse tensor :attr:`input` in the given
     dimensions :attr:`dim`. If :attr:`dim` is a list of dimensions,
@@ -218,7 +228,9 @@ def sum(input: Tensor, dim: DimOrDims = None,
             return torch._sparse_sum(input, dtype=dtype)
 
 
-softmax = _add_docstr(_sparse._sparse_softmax, r"""
+softmax = _add_docstr(
+    _sparse._sparse_softmax,
+    r"""
 sparse.softmax(input, dim, *, dtype=None) -> Tensor
 
 Applies a softmax function.
@@ -243,10 +255,13 @@ Args:
         casted to :attr:`dtype` before the operation is
         performed. This is useful for preventing data type
         overflows. Default: None
-""")
+""",
+)
 
 
-log_softmax = _add_docstr(_sparse._sparse_log_softmax, r"""
+log_softmax = _add_docstr(
+    _sparse._sparse_log_softmax,
+    r"""
 sparse.log_softmax(input, dim, *, dtype=None) -> Tensor
 
 Applies a softmax function followed by logarithm.
@@ -261,4 +276,104 @@ Args:
         casted to :attr:`dtype` before the operation is
         performed. This is useful for preventing data type
         overflows. Default: None
-""")
+""",
+)
+
+
+spdiags = _add_docstr(
+    _sparse._spdiags,
+    r"""
+sparse.spdiags(diagonals, offsets, shape, layout=None) -> Tensor
+
+Creates a sparse tensor by placing the values from rows of
+:attr:`diagonals` along specified diagonals of the output
+
+The :attr:`offsets` controls which diagonals are set.
+
+- If :attr:`offsets[i]` = 0, it is the main diagonal
+- If :attr:`offsets[i]` < 0, it is below the main diagonal
+- If :attr:`offsets[i]` > 0, it is above the main diagonal
+
+The number of rows in :attr:`diagonals` must match the length of
+:attr:`offsets`, and an offset may not be repeated.
+
+Args:
+    diagonals (Tensor): Maxtrix storing diagonals row-wise
+    offsets (Tensor): The diagonals to be set, stored as a vector
+    shape (tuple of ints): The desired shape of the result
+Keyword args:
+    layout (:class:`torch.layout`, optional): The desired layout of the
+        returned tensor. ``torch.sparse_coo`` and ``torch.sparse_csr``
+        are supported. Default: ``torch.sparse_coo``
+
+Examples:
+
+Set the main and first two lower diagonals of a matrix::
+
+    >>> a = torch.arange(9).reshape(3, 3)
+    >>> a
+    tensor([[0, 1, 2],
+            [3, 4, 5],
+            [6, 7, 8])
+    >>> s = torch.sparse.spdiags(diags, torch.tensor([0, -1, -2]), (3,3))
+    >>> s
+    tensor(indices=tensor([[0, 1, 2, 1, 2, 2],
+                          [0, 1, 2, 0, 1, 0]]),
+           values=tensor([0, 1, 2, 3, 4, 6]),
+           size=(3, 3), nnz=6, layout=torch.sparse_coo)
+    >>> s.to_dense()
+    tensor([[0, 0, 0],
+            [3, 1, 0],
+            [6, 4, 2]])
+
+
+Change the output layout::
+
+    >>> a = torch.arange(9).reshape(3, 3)
+    >>> a
+    tensor([[0, 1, 2],[3, 4, 5], [6, 7, 8])
+    >>> s = torch.sparse.spdiags(diags, torch.tensor([0, -1, -2]), (3,3), layout=torch.sparse_csr)
+    >>> s
+    tensor(indices=tensor([[0, 1, 2, 1, 2, 2],
+                           [0, 1, 2, 0, 1, 0]]),
+           values=tensor([0, 1, 2, 3, 4, 6]),
+           size=(3, 3), nnz=6, layout=torch.sparse_coo)
+    >>> s.to_dense()
+    tensor([[0, 0, 0],
+            [3, 1, 0],
+            [6, 4, 2]])
+
+Set partial diagonals of a large output::
+
+    >>> a = torch.tensor([[1, 2], [3, 4]])
+    >>> torch.sparse.spdiags(a, [0, -1], (10, 10)).to_dense()
+    tensor([[1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [3, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 4, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
+
+.. note::
+
+    When setting the values along a given diagonal the index into the diagonal
+    and the index into the row of :attr:`diagonals` is taken as the
+    column index in the output. This has the effect that when setting a diagonal
+    with a positive offset `k` the first value along that diagonal will be
+    the value in position `k` of the row of :attr:`diagonals`
+
+Specifying a positive offset::
+
+    >>> a = torch.tensor([[1,2,3],[1,2,3],[1,2,3]])
+    >>> torch.sparse.spdiags(a, torch.tensor([0, 1, 2]), (5, 5)).to_dense()
+    tensor([[1, 2, 3, 0, 0],
+            [0, 2, 3, 0, 0],
+            [0, 0, 3, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]])
+""",
+)
