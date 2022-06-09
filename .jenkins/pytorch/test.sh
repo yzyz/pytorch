@@ -581,12 +581,12 @@ elif [[ "${BUILD_ENVIRONMENT}" == *distributed* || "${JOB_BASE_NAME}" == *distri
   fi
 elif [[ "${SHARD_NUMBER}" == 1 && $NUM_TEST_SHARDS -gt 1 ]]; then
   test_without_numpy
-  install_torchvision
+  env -u LD_PRELOAD install_torchvision
   install_torchdynamo
   test_python_shard 1
   test_aten
 elif [[ "${SHARD_NUMBER}" == 2 && $NUM_TEST_SHARDS -gt 1 ]]; then
-  install_torchvision
+  env -u LD_PRELOAD install_torchvision
   checkout_install_torchdynamo
   test_python_shard 2
   test_libtorch
