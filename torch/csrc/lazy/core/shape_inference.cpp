@@ -51,6 +51,8 @@
 #include <ATen/native/TensorConversions.h>
 #include <ATen/AccumulateType.h>
 #include <ATen/Functions.h>
+#include <ATen/CompositeExplicitAutogradFunctions.h>
+#include <ATen/NativeFunctions.h>
 #include <ATen/Dispatch.h>
 #include <ATen/InferSize.h>
 #include <ATen/WrapDimUtils.h>
@@ -370,6 +372,10 @@ std::vector<Shape> compute_shape_native_layer_norm_backward(const at::Tensor& gr
   return shapes;
 }
 
+TORCH_API std::vector<Shape> compute_shape_new_empty_strided(const at::Tensor & self, at::IntArrayRef size, at::IntArrayRef stride, c10::optional<at::ScalarType> dtype, c10::optional<at::Layout> layout, c10::optional<at::Device> device, c10::optional<bool> pin_memory) {
+  return {Shape(dtype.has_value() ? *dtype : self.scalar_type(), size.vec())};
+}
+
 std::vector<Shape> compute_shape_mean(const at::Tensor& self, c10::optional<at::ScalarType> dtype) {
   if (dtype.has_value()) {
     return {Shape(dtype.value(), {})};
@@ -612,6 +618,10 @@ std::vector<Shape> compute_shape_clamp_min(const at::Tensor & self, const at::Sc
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
+TORCH_API std::vector<Shape> compute_shape_clone(const at::Tensor & self, c10::optional<at::MemoryFormat> memory_format) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
+}
+
 std::vector<Shape> compute_shape__to_copy(const at::Tensor & self, c10::optional<at::ScalarType> dtype, c10::optional<at::Layout> layout, c10::optional<at::Device> device, c10::optional<bool> pin_memory, bool non_blocking, c10::optional<at::MemoryFormat> memory_format) {
   if(dtype){
     return {Shape(*dtype, self.sizes().vec())};
@@ -653,7 +663,6 @@ std::vector<Shape> compute_shape_narrow_copy(const at::Tensor & self, int64_t di
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
-
 // Non-Native Ops
 std::vector<Shape> compute_shape_scalar(const at::Scalar& value, const at::ScalarType& type) {
   return { Shape(type, {}) };
@@ -674,44 +683,85 @@ std::vector<Shape> compute_shape_cast(const Output& input, const at::ScalarType&
 }
 
 
-// View Ops
+// View Ops (TODO kill these)
 std::vector<Shape> compute_shape_as_strided_view_update(const Output& target, const Output& input, const std::vector<int64_t>& size, const std::vector<int64_t>& stride, const int64_t& storage_offset) {
+  TORCH_INTERNAL_ASSERT(false, "view ops should never be called now that functionalization is being used");
   return { Shape(target.shape().scalar_type(), size) };
 }
 std::vector<Shape> compute_shape_as_strided(const Output& input, const std::vector<int64_t>& size, const std::vector<int64_t>& stride, const int64_t& storage_offset) {
+  TORCH_INTERNAL_ASSERT(false, "view ops should never be called now that functionalization is being used");
   return { Shape(input.shape().scalar_type(), size) };
 }
 std::vector<Shape> compute_shape_diagonal_view_update(const Output& target, const Output& input, const int64_t& offset, const int64_t& dim1, const int64_t& dim2) {
+  TORCH_INTERNAL_ASSERT(false, "view ops should never be called now that functionalization is being used");
   return { target.shape() };
 }
 std::vector<Shape> compute_shape_diagonal(const Output& input, const int64_t& offset, const int64_t& dim1, const int64_t& dim2) {
+  TORCH_INTERNAL_ASSERT(false, "view ops should never be called now that functionalization is being used");
   return { MakeDiagonalShape(input.shape(), offset, dim1, dim2) };
 }
 std::vector<Shape> compute_shape_narrow_view_update(const Output& input, const Output& source, const std::vector<int64_t>& base_indices) {
+  TORCH_INTERNAL_ASSERT(false, "view ops should never be called now that functionalization is being used");
   return { input.shape() };
 }
 std::vector<Shape> compute_shape_narrow(const Output& input, const std::vector<int64_t>& base_indices, const std::vector<int64_t>& sizes) {
+  TORCH_INTERNAL_ASSERT(false, "view ops should never be called now that functionalization is being used");
   return { Shape(input.shape().scalar_type(), sizes) };
 }
 std::vector<Shape> compute_shape_permute(const Output& input, const std::vector<int64_t>& dims) {
+  TORCH_INTERNAL_ASSERT(false, "view ops should never be called now that functionalization is being used");
   return { MakePermuteShape(input.shape(), dims) };
 }
 std::vector<Shape> compute_shape_resize(const Output& input, const std::vector<int64_t>& size) {
+  TORCH_INTERNAL_ASSERT(false, "view ops should never be called now that functionalization is being used");
   return { Shape(input.shape().scalar_type(), size) };
 }
 std::vector<Shape> compute_shape_select_view_update(const Output& target, const Output& source, const int64_t& dim, const int64_t& start, const int64_t& end, const int64_t& stride) {
+  TORCH_INTERNAL_ASSERT(false, "view ops should never be called now that functionalization is being used");
   return { target.shape() };
 }
 std::vector<Shape> compute_shape_select(const Output& input, const int64_t& dim, const int64_t& start, const int64_t& end, const int64_t& stride) {
+  TORCH_INTERNAL_ASSERT(false, "view ops should never be called now that functionalization is being used");
   return { MakeSelectShape(input.shape(), dim, start, end, stride) };
 }
 std::vector<Shape> compute_shape_squeeze(const Output& input, const int& dim) {
+  TORCH_INTERNAL_ASSERT(false, "view ops should never be called now that functionalization is being used");
   const auto& input_shape = input.shape();
   return { torch::lazy::Shape(input_shape.scalar_type(), BuildSqueezedDimensions(input_shape.sizes(), dim)) };
 }
 std::vector<Shape> compute_shape_unsqueeze(const Output& input, const int& dim) {
+  TORCH_INTERNAL_ASSERT(false, "view ops should never be called now that functionalization is being used");
   const auto& input_shape = input.shape();
   return { torch::lazy::Shape(input_shape.scalar_type(), BuildUnsqueezedDimensions(input_shape.sizes(), dim)) };
+}
+
+
+std::vector<Shape> compute_shape_select_scatter(const at::Tensor & self, const at::Tensor & src, int64_t dim, int64_t index) {
+  auto self_meta = at::native::empty_strided_meta(self.sizes(), self.strides(), /*dtype=*/c10::make_optional(self.scalar_type()), /*layout=*/c10::make_optional(self.layout()), /*device=*/c10::make_optional(c10::Device(c10::kMeta)), /*pin_memory=*/c10::nullopt);
+  auto src_meta = at::native::empty_strided_meta(src.sizes(), src.strides(), /*dtype=*/c10::make_optional(src.scalar_type()), /*layout=*/c10::make_optional(src.layout()), /*device=*/c10::make_optional(c10::Device(c10::kMeta)), /*pin_memory=*/c10::nullopt);
+  auto out_meta = at::compositeexplicitautograd::select_scatter(self_meta, src_meta, dim, index);
+  return {Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
+}
+
+std::vector<Shape> compute_shape_diagonal_scatter(const at::Tensor & self, const at::Tensor & src, int64_t offset, int64_t dim1, int64_t dim2) {
+  auto self_meta = at::native::empty_strided_meta(self.sizes(), self.strides(), /*dtype=*/c10::make_optional(self.scalar_type()), /*layout=*/c10::make_optional(self.layout()), /*device=*/c10::make_optional(c10::Device(c10::kMeta)), /*pin_memory=*/c10::nullopt);
+  auto src_meta = at::native::empty_strided_meta(src.sizes(), src.strides(), /*dtype=*/c10::make_optional(src.scalar_type()), /*layout=*/c10::make_optional(src.layout()), /*device=*/c10::make_optional(c10::Device(c10::kMeta)), /*pin_memory=*/c10::nullopt);
+  auto out_meta = at::compositeexplicitautograd::diagonal_scatter(self_meta, src_meta, offset, dim1, dim2);
+  return {Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
+}
+
+std::vector<Shape> compute_shape_slice_scatter(const at::Tensor & self, const at::Tensor & src, int64_t dim, c10::optional<int64_t> start, c10::optional<int64_t> end, int64_t step) {
+  auto self_meta = at::native::empty_strided_meta(self.sizes(), self.strides(), /*dtype=*/c10::make_optional(self.scalar_type()), /*layout=*/c10::make_optional(self.layout()), /*device=*/c10::make_optional(c10::Device(c10::kMeta)), /*pin_memory=*/c10::nullopt);
+  auto src_meta = at::native::empty_strided_meta(src.sizes(), src.strides(), /*dtype=*/c10::make_optional(src.scalar_type()), /*layout=*/c10::make_optional(src.layout()), /*device=*/c10::make_optional(c10::Device(c10::kMeta)), /*pin_memory=*/c10::nullopt);
+  auto out_meta = at::compositeexplicitautograd::slice_scatter(self_meta, src_meta, dim, start, end, step);
+  return {Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
+}
+
+std::vector<Shape> compute_shape_as_strided_scatter(const at::Tensor& self, const at::Tensor& src, at::IntArrayRef size, at::IntArrayRef stride, c10::optional<int64_t> storage_offset) {
+  auto self_meta = at::native::empty_strided_meta(self.sizes(), self.strides(), /*dtype=*/c10::make_optional(self.scalar_type()), /*layout=*/c10::make_optional(self.layout()), /*device=*/c10::make_optional(c10::Device(c10::kMeta)), /*pin_memory=*/c10::nullopt);
+  auto src_meta = at::native::empty_strided_meta(src.sizes(), src.strides(), /*dtype=*/c10::make_optional(src.scalar_type()), /*layout=*/c10::make_optional(src.layout()), /*device=*/c10::make_optional(c10::Device(c10::kMeta)), /*pin_memory=*/c10::nullopt);
+  auto out_meta = at::compositeexplicitautograd::as_strided_scatter(self_meta, src_meta, size, stride, storage_offset);
+  return {Shape(out_meta.scalar_type(), out_meta.sizes().vec())};
 }
 
 // Restore unused-parameters warnings
