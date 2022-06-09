@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -eou pipefail
+set -eoux pipefail
 
 max() {
     local a=$1
@@ -85,8 +85,8 @@ else
     COMMAND_TO_RUN=$@
 fi
 
-echo "Running  ${COMMAND_TO_RUN} > \"${LOG_FILE}\" 2>&1 &"
-${COMMAND_TO_RUN} > "${LOG_FILE}" 2>&1 &
+echo "Running  ${COMMAND_TO_RUN} &"
+${COMMAND_TO_RUN} &
 PID_TO_WATCH=$(ps aux |  grep -v 'grep' | grep -F "${COMMAND_TO_RUN}" | grep -v "$0" | awk '{print $2}' | head -1)
 trap "kill -9 ${PID_TO_WATCH} >/dev/null 2>/dev/null" $(seq 0 15)
 MAX_GPU_MEMORY=0
