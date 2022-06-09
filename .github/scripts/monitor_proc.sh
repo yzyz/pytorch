@@ -88,7 +88,7 @@ fi
 echo "Running  ${COMMAND_TO_RUN} &"
 ${COMMAND_TO_RUN} &
 PID_TO_WATCH=$(ps aux |  grep -v 'grep' | grep -F "${COMMAND_TO_RUN}" | grep -v "$0" | awk '{print $2}' | head -1)
-trap "kill -9 ${PID_TO_WATCH} >/dev/null 2>/dev/null" $(seq 0 15)
+trap "kill -9 ${PID_TO_WATCH} >/dev/null 2>/dev/null" 0
 MAX_GPU_MEMORY=0
 MAX_RSS_MEMORY=0
 MAX_PSS_MEMORY=0
