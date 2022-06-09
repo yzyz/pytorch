@@ -3,6 +3,7 @@ from torch import Tensor
 from torch._prims import utils
 from torch._prims.utils import check
 from torch._prims.wrappers import out_wrapper_multi, out_wrapper
+from torch.utils._pytree import tree_map
 
 from typing import List, Optional
 aten = torch.ops.aten
@@ -21,8 +22,10 @@ meta_funcs = {}
 
 def register_meta(op):
     def wrapper(f):
-        meta_funcs[op] = f
-        name = op.__name__ if op._overloadname != 'default' else op.overloadpacket.__name__
+        def add_func(op):
+            meta_funcs[op] = f
+        tree_map(add_func, op)
+        # name = op.__name__ if op._overloadname != 'default' else op.overloadpacket.__name__
         return f
     return wrapper
 

@@ -102,8 +102,11 @@ class ProxyTensor(torch.Tensor):
     @staticmethod
     def __new__(cls, elem, proxy, *, requires_grad=None):
         # Hack to deal with super().__new__ not working for sparse tensors
+        def create_proxy_symint(sym_int, new_proxy):
+            return torch._C.SymbolicIntNode.new_symint(ProxySymInt(sym_int, new_proxy))
+
         r = torch.Tensor._make_wrapper_subclass(
-            cls, elem.shape,
+            cls, [create_proxy_symint(elem.shape[i], proxy.size(i)) for i in range(len(elem.shape))],
             create_contiguous(elem.shape), 0,
             dtype=elem.dtype, layout=elem.layout, requires_grad=requires_grad if requires_grad is not None else False,
             device=elem.device
@@ -132,22 +135,51 @@ class ProxyTensor(torch.Tensor):
 
 import sympy
 
-class PySymInt(object):
-    def __init__(self, expr, shape_env):
-        self.expr = expr
-        self.shape_env = shape_env
+class ProxySymInt(object):
+    def __init__(self, sym_int, proxy):
+        self.sym_int = sym_int
+        self.proxy = proxy
 
     def wrap(self, num):
-        return PySymInt(sympy.Integer(num), self.shape_env)
+        return ProxySymInt(num, num)
 
     def __str__(self):
-        return f"PySymInt({self.expr})"
+        return f"ProxySymInt({self.sym_int})"
 
     def __int__(self):
-        return self.shape_env.evaluate_expr(self.expr)
+        return int(self.sym_int)
 
     def __bool__(self):
-        return bool(self.shape_env.evaluate_expr(self.expr))
+        return bool(self.sym_int)
+
+magic_methods = [
+    'add',
+    # 'radd',
+    'sub',
+    'mul',
+    # 'div',
+    'mod',
+    'eq',
+    'gt',
+    'lt',
+]
+
+import operator
+
+for method in magic_methods:
+    method_name = f'{method}'
+    op = getattr(operator, method_name)
+    def create_magic_impl():
+        def magic_impl(self, other):
+            def unwrap_proxy(x): return x.proxy if isinstance(x, ProxyTensor) else x
+            out_proxy = op(unwrap_proxy(self), unwrap_proxy(other))
+            def unwrap_proxyint(x): return x.sym_int if isinstance(x, ProxySymInt) else x
+            out_sym_int = op(unwrap_proxy(self), unwrap_proxyint(other))
+            return ProxySymInt(out_sym_int, out_proxy)
+        return magic_impl
+
+    # this should be wrapped transparently into torch._C.SymbolicIntNode
+    setattr(ProxySymInt, method_name, create_magic_impl())
 
 class PythonKeyTracer(Tracer):
     def __init__(self):
@@ -178,6 +210,10 @@ class PythonKeyTracer(Tracer):
                 setattr(self.root, qualname, a)
 
             return self.create_node('get_attr', qualname, (), {})
+        elif isinstance(a, torch._C.SymbolicIntNode):
+            py_symint = a.get_pyobj()
+            assert isinstance(py_symint, ProxySymInt)
+            return py_symint.proxy.node
         return super().create_arg(a)
 
 

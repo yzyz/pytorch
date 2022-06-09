@@ -6,7 +6,7 @@ from torch.utils._pytree import tree_map
 import operator
 from contextlib import contextmanager
 from torch._meta_registrations import meta_funcs, register_meta
-from torch.fx.experimental.proxy_tensor import PySymInt
+# from torch.fx.experimental.proxy_tensor import PySymInt
 aten = torch.ops.aten
 
 from torch._C import _disabled_torch_function_impl
@@ -36,23 +36,23 @@ def nop(x):
 def n_like(arg, **kwargs):
     return arg.new_empty(arg.shape)
 
-# @register_meta([aten.add.Tensor, aten.sub.Tensor])
-# def binary_meta(a, b):
-#     return a.new_empty(a.shape)
+@register_meta([aten.add.Tensor, aten.sub.Tensor, aten.mul.Tensor])
+def binary_meta(a, b):
+    return a.new_empty(a.shape)
 
-# @register_meta(aten.cat.default)
-# def cat_meta(tensors, dim=0):
-#     concat_length = 0
-#     shape = tensors[0].shape
-#     for tensor in tensors:
-#         for idx, (common_length, length) in enumerate(zip(shape, tensor.shape)):
-#             if idx == dim:
-#                 concat_length = concat_length + length
-#             else:
-#                 assert length == common_length
-#     new_shape = list(shape)
-#     new_shape[dim] = concat_length
-#     return tensors[0].new_empty(new_shape)
+@register_meta(aten.cat.default)
+def cat_meta(tensors, dim=0):
+    concat_length = 0
+    shape = tensors[0].shape
+    for tensor in tensors:
+        for idx, (common_length, length) in enumerate(zip(shape, tensor.shape)):
+            if idx == dim:
+                concat_length = concat_length + length
+            else:
+                assert length == common_length
+    new_shape = list(shape)
+    new_shape[dim] = concat_length
+    return tensors[0].new_empty(new_shape)
 
 
 @register_meta(aten.sum.default)
@@ -65,6 +65,22 @@ def expand_symint_meta(a, size, implicit=False):
     return a.new_empty(size)
 
 
+class PySymInt(object):
+    def __init__(self, expr, shape_env):
+        self.expr = expr
+        self.shape_env = shape_env
+
+    def wrap(self, num):
+        return PySymInt(sympy.Integer(num), self.shape_env)
+
+    def __str__(self):
+        return f"PySymInt({self.expr})"
+
+    def __int__(self):
+        return self.shape_env.evaluate_expr(self.expr)
+
+    def __bool__(self):
+        return bool(self.shape_env.evaluate_expr(self.expr))
 
 magic_methods = {
     'add': lambda a, b: a + b,
@@ -128,7 +144,7 @@ class FakeSymbolicTensor(torch.Tensor):
         r = torch.Tensor._make_wrapper_subclass(
             cls, sym_shape,
             contiguous_strides, offset,
-            dtype=dtype, layout=layout, requires_grad=False,
+            dtype=dtype, layout=layout, requires_grad=requires_grad,
             device=device
         )
         return r
@@ -162,11 +178,12 @@ from functorch import make_fx
 shape_env = ShapeEnv()
 x = create_symbolic_tensor("x", torch.randn(3,4,5, requires_grad=True), shape_env)
 
-def f(x):
-    orig_shape = x.shape
-    x = torch.max(x)
+def f(y):
+    orig_shape = y.shape
+    x = y * 2
+    # x = torch.cat([x_inp, x_inp])
     x = x.sum()
-    return x.expand(orig_shape)
+    return torch.autograd.grad(x, y)
 
 print(make_fx(f, decomposition_table={torch.ops.aten.detach.default: lambda x: x})(x))
 exit(0)
