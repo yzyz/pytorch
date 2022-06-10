@@ -52,6 +52,8 @@ build --per_file_copt='^//.*\.(cpp|cc)$'@-Werror=type-limits
 build --per_file_copt='^//.*\.cu$'@--compiler-options=-Werror=type-limits
 build --per_file_copt='^//.*\.(cpp|cc)$'@-Werror=unused-function
 build --per_file_copt='^//.*\.cu$'@--compiler-options=-Werror=unused-function
+build --per_file_copt='^//.*\.(cpp|cc)$'@-Werror=unused-but-set-variable
+build --per_file_copt='^//.*\.cu$'@--compiler-options=-Werror=unused-but-set-variable
 build --per_file_copt='^//.*\.(cpp|cc)$'@-Werror=unused-variable
 build --per_file_copt='^//.*\.cu$'@--compiler-options=-Werror=unused-variable
 
